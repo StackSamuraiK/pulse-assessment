@@ -1,8 +1,14 @@
-import { GoogleGenAI } from '@google/genai';
 import { logger } from '../utils/logger';
 
-// Ensure you export GOOGLE_API_KEY or GEMINI_API_KEY in your env
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || ""}); 
+let aiInstance: any = null;
+
+async function getAI() {
+  if (!aiInstance) {
+    const { GoogleGenAI } = await import('@google/genai');
+    aiInstance = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+  }
+  return aiInstance;
+}
 
 export class AIService {
   
@@ -11,6 +17,7 @@ export class AIService {
    */
   static async generateEmbedding(text: string): Promise<number[]> {
     try {
+      const ai = await getAI();
       const response = await ai.models.embedContent({
         model: 'gemini-embedding-001',
         contents: text,
@@ -27,6 +34,7 @@ export class AIService {
    */
   static async getStreamingResponse(prompt: string) {
     try {
+      const ai = await getAI();
       const responseStream = await ai.models.generateContentStream({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -54,6 +62,7 @@ Only output the category name.
 Query: "${query}"`;
     
     try {
+      const ai = await getAI();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
