@@ -3,10 +3,17 @@ import { redisConnection } from '../config/redis';
 import { Memory } from '../models/Memory';
 import { Conversation } from '../models/Conversation';
 import { DocumentChunk } from '../models/DocumentChunk';
-import { GoogleGenAI } from '@google/genai';
 import { logger } from '../utils/logger';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+let aiInstance: any = null;
+
+async function getAI() {
+  if (!aiInstance) {
+    const { GoogleGenAI } = await import('@google/genai');
+    aiInstance = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+  }
+  return aiInstance;
+}
 
 /**
  * Processes all job types on the memory-processing queue:
@@ -51,6 +58,7 @@ ${recentMessages}
 
 Provide only the updated summary.`;
 
+    const ai = await getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
@@ -92,6 +100,7 @@ const processIngestLiveChunks = async (job: Job) => {
       }
 
       // Generate embedding
+      const ai = await getAI();
       const embedding = await ai.models.embedContent({
         model: 'gemini-embedding-001',
         contents: chunk.text,
