@@ -1,23 +1,16 @@
+import { GoogleGenAI } from '@google/genai';
 import { logger } from '../utils/logger';
 
-let aiInstance: any = null;
-
-async function getAI() {
-  if (!aiInstance) {
-    const { GoogleGenAI } = await import('@google/genai');
-    aiInstance = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-  }
-  return aiInstance;
-}
+// Ensure you export GOOGLE_API_KEY or GEMINI_API_KEY in your env
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export class AIService {
-  
+
   /**
    * Generates embedding for a given text
    */
   static async generateEmbedding(text: string): Promise<number[]> {
     try {
-      const ai = await getAI();
       const response = await ai.models.embedContent({
         model: 'gemini-embedding-001',
         contents: text,
@@ -34,7 +27,6 @@ export class AIService {
    */
   static async getStreamingResponse(prompt: string) {
     try {
-      const ai = await getAI();
       const responseStream = await ai.models.generateContentStream({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -60,9 +52,8 @@ export class AIService {
 Only output the category name.
 
 Query: "${query}"`;
-    
+
     try {
-      const ai = await getAI();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -71,7 +62,7 @@ Query: "${query}"`;
           maxOutputTokens: 10
         }
       });
-      
+
       const result = response.text?.trim().toLowerCase() || 'simple';
       if (['simple', 'follow_up', 'complex'].includes(result)) {
         return result as 'simple' | 'follow_up' | 'complex';
