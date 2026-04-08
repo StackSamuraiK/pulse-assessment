@@ -1,3 +1,5 @@
+import { fetchEventSource } from '@microsoft/fetch-event-source';
+
 const API_BASE = 'http://localhost:3000/api';
 
 export interface ChatMessage {
@@ -16,53 +18,38 @@ export async function sendChatMessage(
   userId: string,
   message: string,
   onChunk: (text: string) => void,
-  onDone: (meta: { source?: string; citations?: any[] }) => void,
+  onDone: (meta: { source?: string; citations?: ChatMessage['citations'] }) => void,
   onError: (error: string) => void,
 ) {
+  class FatalError extends Error {}
+
   try {
-    const response = await fetch(`${API_BASE}/chat`, {
+    await fetchEventSource(`${API_BASE}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream'
+      },
       body: JSON.stringify({ userId, message }),
-    });
+      async onopen(response) {
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new FatalError(err.error || 'Request failed');
+        }
 
-    if (!response.ok) {
-      const err = await response.json();
-      onError(err.error || 'Request failed');
-      return;
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-
-    // Handle cached (non-streaming) response
-    if (contentType.includes('application/json')) {
-      const data = await response.json();
-      onChunk(data.response);
-      onDone({ source: data.source });
-      return;
-    }
-
-    // Handle SSE streaming response
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    if (!reader) {
-      onError('No response body');
-      return;
-    }
-
-    let buffer = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
+        const contentType = response.headers.get('content-type') || '';
+        
+        // Handle cached (non-streaming) response
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          onChunk(data.response);
+          onDone({ source: data.source });
+          throw new FatalError('JSON_CACHED_RESPONSE');
+        }
+      },
+      onmessage(event) {
         try {
-          const data = JSON.parse(line.slice(6));
+          const data = JSON.parse(event.data);
           if (data.done) {
             onDone({ source: data.source, citations: data.citations });
           } else if (data.text) {
@@ -71,12 +58,22 @@ export async function sendChatMessage(
             onError(data.error);
           }
         } catch {
-          // Skip malformed JSON lines
+          // Skip malformed JSON
         }
+      },
+      onerror(err) {
+        if (err instanceof FatalError) {
+          throw err; // Rethrow to stop retrying
+        }
+        throw err; // Stop retries on other errors as well
       }
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message !== 'JSON_CACHED_RESPONSE') {
+      onError(error.message || 'Network error');
+    } else if (error instanceof Error === false) {
+      onError('Network error');
     }
-  } catch (error: any) {
-    onError(error.message || 'Network error');
   }
 }
 

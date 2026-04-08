@@ -4,8 +4,6 @@ import Markdown from 'markdown-to-jsx';
 import { Send, Bot, User, Sparkles, BookOpen, Clock, Loader2, Database, Globe } from 'lucide-react';
 import { sendChatMessage, fetchHistory, type ChatMessage } from './lib/api';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
@@ -17,8 +15,15 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentResponse, setCurrentResponse] = useState('');
-  const [activeSource, setActiveSource] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function scrollToBottom() {
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 100);
+  }
 
   useEffect(() => {
     // Fetch history on load
@@ -27,14 +32,6 @@ export default function App() {
       scrollToBottom();
     });
   }, []);
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    }, 100);
-  };
 
   useEffect(() => {
     scrollToBottom();
@@ -65,7 +62,7 @@ export default function App() {
           {
             role: 'assistant',
             content: completeResponse,
-            source: meta.source as any,
+            source: meta.source as ChatMessage['source'],
             citations: meta.citations,
           },
         ]);
